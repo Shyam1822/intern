@@ -1,0 +1,103 @@
+//Analytics.jsx addition
+
+const MainPage = () => {
+  const [ageRange, setAgeRange] = useState([null, null]);
+
+  const handleLabelClick = (label) => {
+    const ageRanges = {
+      '20 to 30': [20, 30],
+      '30 to 45': [30, 45],
+      '45 to 55': [45, 55],
+      '55+': [55, 100],
+    };
+
+    const selectedRange = ageRanges[label];
+
+    setAgeRange((prevRange) =>
+      prevRange[0] === selectedRange[0] && prevRange[1] === selectedRange[1]
+        ? [0, 100] // Reset to default
+        : selectedRange
+    );
+  };
+
+  return (
+    <div>
+      <DoughnutChart1 selectedAgeRange={ageRange} onLabelClick={handleLabelClick} />
+      <DoughnutChart2 ageRange={ageRange} />
+    </div>
+  );
+};
+
+
+//Chart1 comp(age)
+const DoughnutChart1 = ({ onLabelClick, selectedAgeRange }) => {
+  const data = {
+    labels: ['0-18', '19-35', '36-50', '51+'],
+    datasets: [
+      {
+        data: [10, 20, 30, 40],
+        backgroundColor: ['red', 'blue', 'green', 'orange'],
+        borderColor: ['red', 'blue', 'green', 'orange'],
+        borderWidth: [1, 1, 1, 1],
+      },
+    ],
+  };
+
+  const ageRanges = {
+    '20 to 30': [20, 30],
+      '30 to 45': [30, 45],
+      '45 to 55': [45, 55],
+      '55+': [55, 100],
+  };
+
+  data.labels.forEach((label, index) => {
+    if (
+      selectedAgeRange[0] === ageRanges[label][0] &&
+      selectedAgeRange[1] === ageRanges[label][1]
+    ) {
+      data.datasets[0].borderWidth[index] = 5; // Thicker border for the selected segment
+    } else {
+      data.datasets[0].borderWidth[index] = 1; // Default border width
+    }
+  });
+
+  const options = {
+    onClick: (event, elements) => {
+      if (elements.length > 0) {
+        const clickedIndex = elements[0].index;
+        const clickedLabel = data.labels[clickedIndex];
+        onLabelClick(clickedLabel);
+      }
+    },
+  };
+
+  return <Doughnut data={data} options={options} />;
+};
+
+
+//Chart2 comp(occupation)
+const DoughnutChart2 = ({ ageRange }) => {
+  const data = {
+    labels: ['Employed', 'Unemployed', 'Student', 'Retired'],
+    datasets: [
+      {
+        data: [15, 25, 35, 45],
+        backgroundColor: ['yellow', 'purple', 'orange', 'pink'],
+      },
+    ],
+  };
+
+  return (
+    <div>
+      
+        <p>Selected Age Range: {ageRange[0]} - {ageRange[1]}</p>
+     
+      <Doughnut data={data} />
+    </div>
+  );
+};
+
+
+
+
+
