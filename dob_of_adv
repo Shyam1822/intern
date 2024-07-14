@@ -1,0 +1,17 @@
+adv_id=[]
+
+result = session.run("""match(n:Advisor) return n.id as id""")
+
+for i in result:
+    adv_id.append(i['id'])
+
+dob = [random_date(1,1,1970,31,12,2000) for i in range(adv_id)]
+
+query = """
+  match (n:Advisor{id:$id})-[:HAS_DETAILS]->(c:PersonalInfo)
+  set c.DOB:date($date)
+"""
+
+for i in range(len(adv_id)):
+    session.run(query,id=adv_id[i],date=dob[i])
+  
