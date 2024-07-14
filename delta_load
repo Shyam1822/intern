@@ -1,0 +1,77 @@
+import logging
+logging.basicConfig(filename='delta_load.log', level=logging.INFO)
+
+
+@app.route('/delta-load', methods=['POST'])
+def delta_load():
+    data = request.get_json()
+    queries = data.get('queries', [])
+
+    if not queries:
+        return jsonify({"error": "No queries provided"}), 400
+
+    results = []
+    for query_obj in queries:
+        query = query_obj.get('query')
+        description = query_obj.get('description', 'No description provided')
+        result = run_query(query, description)
+        results.append(result)
+    
+    return jsonify(results), 200
+
+
+
+
+def run_query(query, description):
+    result = {
+        'query': query,
+        'description': description,
+        'status': 'pending',
+        'error': None,
+        'data': None  # To hold the result of read queries
+    }
+
+    try:
+          # Validate the query (this is a placeholder, implement actual validation as needed)
+          if not query.strip().lower().startswith(("match", "create", "delete", "merge", "set", "return")):
+              raise ValueError("Invalid query")
+
+          # Determine if the query is a read or write query
+          if query.strip().lower().startswith("match") or "return" in query.strip().lower():
+              # It's a read query
+              records = g.session.run(query)
+              result['data'] = [record.data() for record in records]
+              result['status'] = 'completed'
+          else:
+              # It's a write query
+              session.run(query)
+              result['status'] = 'completed'
+    except Exception as e:
+        result['status'] = 'failed'
+        result['error'] = str(e)
+    
+    # Log the result
+    log_query(result)
+    
+    return result
+
+def log_query(result):
+    logging.info(f"Query: {result['query']} - Description: {result['description']} - Status: {result['status']} - Error: {result.get('error')} - Data: {result.get('data')}")
+
+
+{
+    "queries": [
+        {
+            "query": "MATCH (n) RETURN n",
+            "description": "Retrieve all nodes"
+        },
+        {
+            "query": "CREATE (n:Person {name: 'John Doe'})",
+            "description": "Create a new person node"
+        },
+        {
+            "query": "MATCH (n:Person {name: 'John Doe'}) DELETE n",
+            "description": "Delete the person node named John Doe"
+        }
+    ]
+}
