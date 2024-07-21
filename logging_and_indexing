@@ -1,0 +1,89 @@
+import logging
+from flask import Flask, jsonify
+from neo4j import GraphDatabase
+from flask_cors import CORS
+from datetime import datetime
+
+app = Flask(__name__)
+CORS(app)
+
+driver = GraphDatabase.driver(uri="bolt://localhost:7687", auth=('neo4j', '12345678'))
+
+# Configure logging
+logging.basicConfig(filename='app.log', level=logging.INFO,
+                    format='%(asctime)s %(levelname)s:%(message)s')
+
+def ensure_index(session, index_name, create_query):
+    indexes = session.run("CALL db.indexes()")
+    index_exists = any(index_name in record["name"] for record in indexes)
+    
+    if not index_exists:
+        session.run(create_query)
+        logging.info(f"Index {index_name} created.")
+    else:
+        logging.info(f"Index {index_name} already exists.")
+
+def create_indexes():
+    with driver.session() as session:
+        ensure_index(session, "advisor_emp_id_index", "CREATE INDEX advisor_emp_id_index FOR (a:Advisor) ON (a.emp_id);")
+        ensure_index(session, "party_id_index", "CREATE INDEX party_id_index FOR (p:Party) ON (p.id);")
+        # Add more indexes as needed
+
+@app.route("/")
+def greet():
+    create_indexes()  # Ensure indexes at the start
+    start_time = datetime.now()
+    logging.info("Query to fetch all advisors started.")
+    
+    query = "MATCH (n:Advisor) RETURN n.emp_id AS id, n.adv_type AS type"
+    results = []
+    
+    with driver.session() as session:
+        result = session.run(query)
+        for record in result:
+            results.append({"emp_id": record["id"], "type": record["type"]})
+
+    end_time = datetime.now()
+    duration = (end_time - start_time).total_seconds()
+    logging.info(f"Query completed in {duration} seconds.")
+    
+    return jsonify(results)
+
+@app.route('/graph/<emp_id>')
+def get_graph_data(emp_id):
+    create_indexes()  # Ensure indexes at the start
+    start_time = datetime.now()
+    logging.info(f"Query to fetch graph data for emp_id {emp_id} started.")
+    
+    with driver.session() as session:
+        result = session.run("""
+        MATCH (advisor:Advisor{emp_id:$emp_id})-[:ADVISES]->(party:Party)
+        RETURN advisor.emp_id AS advisorId, advisor.name AS advisorName,
+               party.id AS partyId
+        """, emp_id=int(emp_id))
+        nodes = []
+        edges = []
+        node_ids = set()  # To ensure unique nodes
+
+        for record in result:
+            advisor_id = record['advisorId']
+            advisor_name = record['advisorName']
+            party_id = record['partyId']
+
+            # Create nodes if they haven't been added yet
+            if advisor_id not in node_ids:
+                nodes.append({"id": advisor_id, "label": advisor_name, "type": "advisor"})
+                node_ids.add(advisor_id)
+            if party_id not in node_ids:
+                nodes.append({"id": party_id, "label": party_id, "type": "party"})
+                node_ids.add(party_id)
+            edges.append({"source": advisor_id, "target": party_id, "type": "advises"})
+
+    end_time = datetime.now()
+    duration = (end_time - start_time).total_seconds()
+    logging.info(f"Query completed in {duration} seconds for emp_id {emp_id}.")
+    
+    return jsonify({"nodes": nodes, "edges": edges})
+
+if __name__ == "__main__":
+    app.run(debug=True, port=3000)
